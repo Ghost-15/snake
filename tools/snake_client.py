@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 import socket
 import sys
@@ -40,10 +39,10 @@ class Keyboard:
             if ch in (b"\x00", b"\xe0"):
                 code = self.msvcrt.getch()
                 return {
-                    b"H": "U",
-                    b"P": "D",
-                    b"K": "L",
-                    b"M": "R",
+                    b"H": "UP",
+                    b"P": "DOWN",
+                    b"K": "LEFT",
+                    b"M": "RIGHT",
                 }.get(code)
 
             try:
@@ -56,92 +55,49 @@ class Keyboard:
         ready, _, _ = select.select([sys.stdin], [], [], 0)
         if not ready:
             return None
-        return sys.stdin.read(1).lower()
 
-
-def clear_screen():
-    if os.name == "nt":
-        os.system("cls")
-    else:
-        print("\033[H\033[J", end="")
-
-
-def render(state, connected=True):
-    clear_screen()
-    if not connected:
-        print("Connexion perdue avec l'ESP32.")
-        return
-
-    if not state:
-        print("Connexion OK. En attente du premier etat du jeu...")
-        return
-
-    width = state["w"]
-    height = state["h"]
-    snake = [tuple(part) for part in state["snake"]]
-    snake_set = set(snake)
-    food = tuple(state["food"])
-
-    lines = [
-        f"Snake ESP32 | Score: {state['score']} | r: reset | x: quitter",
-        "Controle: fleches ou ZQSD/WASD",
-        "+" + "-" * width + "+",
-    ]
-
-    for y in range(height):
-        row = []
-        for x in range(width):
-            p = (x, y)
-            if snake and p == snake[0]:
-                row.append("@")
-            elif p in snake_set:
-                row.append("o")
-            elif p == food:
-                row.append("*")
-            else:
-                row.append(" ")
-        lines.append("|" + "".join(row) + "|")
-
-    lines.append("+" + "-" * width + "+")
-    if state["over"]:
-        lines.append("Game over. Appuie sur r pour recommencer.")
-
-    print("\n".join(lines), flush=True)
+        ch = sys.stdin.read(1)
+        if ch == "\x1b":
+            sequence = sys.stdin.read(2)
+            return {
+                "[A": "UP",
+                "[B": "DOWN",
+                "[D": "LEFT",
+                "[C": "RIGHT",
+            }.get(sequence)
+        return ch.lower()
 
 
 def reader(sock, shared):
     file = sock.makefile("r", encoding="utf-8", newline="\n")
     try:
-        for line in file:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                state = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            with shared["lock"]:
-                shared["state"] = state
-                shared["dirty"] = True
+        for _ in file:
+            pass
     finally:
         with shared["lock"]:
             shared["connected"] = False
-            shared["dirty"] = True
 
 
 def key_to_command(key):
     return {
-        "z": "U",
-        "w": "U",
-        "U": "U",
-        "s": "D",
-        "D": "D",
-        "q": "L",
-        "a": "L",
-        "L": "L",
-        "d": "R",
-        "R": "R",
-        "r": "N",
+        "1": "SINGLE",
+        "2": "MULTI",
+        "m": "MENU",
+        "r": "RESET",
+        "z": "P1U",
+        "w": "P1U",
+        "UP": "P1U",
+        "s": "P1D",
+        "DOWN": "P1D",
+        "q": "P1L",
+        "a": "P1L",
+        "LEFT": "P1L",
+        "d": "P1R",
+        "RIGHT": "P1R",
+        "i": "P2U",
+        "k": "P2D",
+        "j": "P2L",
+        "l": "P2R",
     }.get(key)
 
 
@@ -151,12 +107,7 @@ def main():
     parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args()
 
-    shared = {
-        "state": None,
-        "dirty": True,
-        "connected": True,
-        "lock": threading.Lock(),
-    }
+    shared = {"connected": True, "lock": threading.Lock()}
 
     try:
         sock = socket.create_connection((args.host, args.port), timeout=10)
@@ -177,13 +128,7 @@ def main():
             try:
                 while True:
                     with shared["lock"]:
-                        dirty = shared["dirty"]
-                        state = shared["state"]
                         connected = shared["connected"]
-                        shared["dirty"] = False
-
-                    if dirty:
-                        render(state, connected)
 
                     if not connected:
                         break

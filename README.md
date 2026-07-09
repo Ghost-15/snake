@@ -1,6 +1,15 @@
 # Snake ESP32 via Wi-Fi
 
-Ce projet fait tourner la logique du Snake sur un ESP32. L'ESP32 affiche le jeu sur un ecran OLED I2C SSD1306 128x64, ouvre une socket TCP en Wi-Fi, et ton ordinateur sert de manette avec un client Python.
+Ce projet fait tourner la logique du Snake sur un ESP32. L'ESP32 affiche le menu, le jeu et les scores sur un ecran OLED I2C SSD1306 128x64, ouvre une socket TCP en Wi-Fi, et ton ordinateur sert seulement de manette avec un client Python.
+
+Le jeu contient maintenant :
+
+- un menu de demarrage ;
+- un mode solo ;
+- un mode multijoueur a deux serpents ;
+- un score par joueur ;
+- des records solo et duo gardes en memoire tant que l'ESP32 reste allume ;
+- jusqu'a deux clients TCP connectes en meme temps.
 
 ## 1. Wi-Fi
 
@@ -62,23 +71,31 @@ python tools/snake_client.py 192.168.4.1
 
 Si tu as configure ton Wi-Fi maison, remplace `192.168.4.1` par l'IP affichee dans le moniteur serie.
 
+Le client Python n'affiche pas le plateau ni le menu. Regarde l'ecran OLED de l'ESP32 : le terminal sert uniquement a envoyer les touches.
+
 Commandes :
 
-- Fleches du clavier
-- `ZQSD` ou `WASD`
-- `r` pour recommencer
-- `x` ou `Ctrl+C` pour quitter
+- `1` pour lancer le mode solo
+- `2` pour lancer le mode multijoueur
+- Joueur 1 : fleches du clavier, `ZQSD` ou `WASD`
+- Joueur 2 : `IJKL`
+- `r` pour recommencer la partie actuelle
+- `m` pour revenir au menu
+- `x` ou `Ctrl+C` pour quitter le client
 
-Le snake ne bouge pas tout seul : chaque touche de direction le fait avancer d'une case.
+Le snake avance maintenant tout seul. Les touches servent a changer la direction avant le prochain deplacement.
 
 ## Protocole socket
 
 Le client envoie une commande texte terminee par `\n` :
 
-- `U` : haut
-- `D` : bas
-- `L` : gauche
-- `R` : droite
-- `N` : nouvelle partie
+- `SINGLE` : lancer une partie solo
+- `MULTI` : lancer une partie multijoueur
+- `MENU` : revenir au menu
+- `RESET` : recommencer la partie actuelle
+- `P1U`, `P1D`, `P1L`, `P1R` : directions du joueur 1
+- `P2U`, `P2D`, `P2L`, `P2R` : directions du joueur 2
+
+Les anciennes commandes `U`, `D`, `L`, `R` et `N` restent acceptees pour le joueur 1.
 
 L'ESP32 renvoie l'etat du jeu en JSON, une ligne par mise a jour.
